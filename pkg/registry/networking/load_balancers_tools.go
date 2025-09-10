@@ -1,0 +1,409 @@
+package networking
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/digitalocean/godo"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+)
+
+type LoadBalancersTool struct {
+	client *godo.Client
+}
+
+func NewLoadBalancersTool(client *godo.Client) *LoadBalancersTool {
+	return &LoadBalancersTool{
+		client: client,
+	}
+}
+
+func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+	region := args["Region"].(string)
+	dropletIDs := args["DropletIDs"].([]any)
+	dIDs := make([]int, len(dropletIDs))
+	for i, id := range dropletIDs {
+		if did, ok := id.(float64); ok {
+			dIDs[i] = int(did)
+		}
+	}
+
+	// Process forwarding rules
+	var forwardingRules []godo.ForwardingRule
+	if rules, ok := args["ForwardingRules"]; ok && rules != nil {
+		forwardingRulesList := rules.([]any)
+		for _, ruleData := range forwardingRulesList {
+			rule := ruleData.(map[string]any)
+
+			entryProtocol := rule["EntryProtocol"].(string)
+			entryPort := rule["EntryPort"].(int)
+			targetProtocol := rule["TargetProtocol"].(string)
+			targetPort := rule["TargetPort"].(int)
+
+			forwardingRule := godo.ForwardingRule{
+				EntryProtocol:  entryProtocol,
+				EntryPort:      entryPort,
+				TargetProtocol: targetProtocol,
+				TargetPort:     targetPort,
+			}
+			forwardingRules = append(forwardingRules, forwardingRule)
+		}
+	}
+
+	if len(forwardingRules) == 0 {
+		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
+	}
+
+	lbr := &godo.LoadBalancerRequest{
+		Region:          region,
+		DropletIDs:      dIDs,
+		ForwardingRules: forwardingRules,
+	}
+	lb, _, err := l.client.LoadBalancers.Create(ctx, lbr)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+	jsonLB, err := json.MarshalIndent(lb, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonLB)), nil
+}
+
+func (l *LoadBalancersTool) deleteLoadBalancer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	lbID := req.GetArguments()["LoadBalancerID"].(string)
+	_, err := l.client.LoadBalancers.Delete(ctx, lbID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Load Balancer deleted successfully"), nil
+}
+
+func (l *LoadBalancersTool) deleteLoadBalancerCache(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	lbID := req.GetArguments()["LoadBalancerID"].(string)
+	_, err := l.client.LoadBalancers.PurgeCache(ctx, lbID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Load Balancer cache deleted successfully"), nil
+}
+
+func (l *LoadBalancersTool) getLoadBalancer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	lbID, ok := req.GetArguments()["LoadBalancerID"].(string)
+	if !ok || lbID == "" {
+		return mcp.NewToolResultError("LoadBalancer ID is required"), nil
+	}
+
+	lb, _, err := l.client.LoadBalancers.Get(ctx, lbID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+	jsonLB, err := json.MarshalIndent(lb, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonLB)), nil
+}
+
+func (l *LoadBalancersTool) listLoadBalancers(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	page, ok := req.GetArguments()["Page"].(float64)
+	if !ok {
+		page = 1
+	}
+	perPage, ok := req.GetArguments()["PerPage"].(float64)
+	if !ok {
+		perPage = float64(20)
+	}
+	opt := &godo.ListOptions{
+		Page:    int(page),
+		PerPage: int(perPage),
+	}
+	lbs, _, err := l.client.LoadBalancers.List(ctx, opt)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+	jsonLBs, err := json.MarshalIndent(lbs, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonLBs)), nil
+}
+
+func (l *LoadBalancersTool) addDroplets(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	lbID, ok := req.GetArguments()["LoadBalancerID"].(string)
+	if !ok || lbID == "" {
+		return mcp.NewToolResultError("Load Balancer ID is required"), nil
+	}
+	dropletIDs, ok := req.GetArguments()["DropletIDs"].([]any)
+	if !ok || len(dropletIDs) == 0 {
+		return mcp.NewToolResultError("Droplet IDs are required"), nil
+	}
+	dIDs := make([]int, len(dropletIDs))
+	for i, id := range dropletIDs {
+		if did, ok := id.(float64); ok {
+			dIDs[i] = int(did)
+		}
+	}
+
+	_, err := l.client.LoadBalancers.AddDroplets(ctx, lbID, dIDs...)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Droplets added successfully"), nil
+}
+
+func (l *LoadBalancersTool) removeDroplets(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	lbID, ok := req.GetArguments()["LoadBalancerID"].(string)
+	if !ok || lbID == "" {
+		return mcp.NewToolResultError("Load Balancer ID is required"), nil
+	}
+	dropletIDs, ok := req.GetArguments()["DropletIDs"].([]any)
+	if !ok || len(dropletIDs) == 0 {
+		return mcp.NewToolResultError("Droplet IDs are required"), nil
+	}
+	dIDs := make([]int, len(dropletIDs))
+	for i, id := range dropletIDs {
+		if did, ok := id.(float64); ok {
+			dIDs[i] = int(did)
+		}
+	}
+
+	_, err := l.client.LoadBalancers.RemoveDroplets(ctx, lbID, dIDs...)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Droplets removed successfully"), nil
+}
+
+func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+	lbID, ok := args["LoadBalancerID"].(string)
+	if !ok || lbID == "" {
+		return mcp.NewToolResultError("Load Balancer ID is required"), nil
+	}
+	region, ok := args["Region"].(string)
+	if !ok || region == "" {
+		return mcp.NewToolResultError("Region is required"), nil
+	}
+	dropletIds, ok := args["DropletIDs"].([]any)
+	if !ok {
+		return mcp.NewToolResultError("Droplet IDs are required"), nil
+	}
+	dIDs := make([]int, len(dropletIds))
+	for i, id := range dropletIds {
+		if did, ok := id.(float64); ok {
+			dIDs[i] = int(did)
+		}
+	}
+
+	// Process forwarding rules
+	var forwardingRules []godo.ForwardingRule
+	if rules, ok := args["ForwardingRules"]; ok && rules != nil {
+		forwardingRulesList := rules.([]any)
+		for _, ruleData := range forwardingRulesList {
+			rule := ruleData.(map[string]any)
+
+			entryProtocol := rule["EntryProtocol"].(string)
+			entryPort := rule["EntryPort"].(int)
+			targetProtocol := rule["TargetProtocol"].(string)
+			targetPort := rule["TargetPort"].(int)
+
+			forwardingRule := godo.ForwardingRule{
+				EntryProtocol:  entryProtocol,
+				EntryPort:      entryPort,
+				TargetProtocol: targetProtocol,
+				TargetPort:     targetPort,
+			}
+			forwardingRules = append(forwardingRules, forwardingRule)
+		}
+	}
+
+	if len(forwardingRules) == 0 {
+		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
+	}
+
+	lbr := &godo.LoadBalancerRequest{
+		Region:          region,
+		DropletIDs:      dIDs,
+		ForwardingRules: forwardingRules,
+	}
+	lb, _, err := l.client.LoadBalancers.Update(ctx, lbID, lbr)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+	jsonLB, err := json.MarshalIndent(lb, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonLB)), nil
+}
+
+func (l *LoadBalancersTool) addForwardingRules(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	lbID, ok := req.GetArguments()["LoadBalancerID"].(string)
+	if !ok || lbID == "" {
+		return mcp.NewToolResultError("Load Balancer ID is required"), nil
+	}
+	forwardingRules := []godo.ForwardingRule{}
+
+	if rules, ok := req.GetArguments()["ForwardingRules"]; ok && rules != nil {
+		forwardingRulesList := rules.([]any)
+		for _, ruleData := range forwardingRulesList {
+			rule := ruleData.(map[string]any)
+
+			entryProtocol := rule["EntryProtocol"].(string)
+			entryPort := rule["EntryPort"].(int)
+			targetProtocol := rule["TargetProtocol"].(string)
+			targetPort := rule["TargetPort"].(int)
+
+			forwardingRule := godo.ForwardingRule{
+				EntryProtocol:  entryProtocol,
+				EntryPort:      entryPort,
+				TargetProtocol: targetProtocol,
+				TargetPort:     targetPort,
+			}
+			forwardingRules = append(forwardingRules, forwardingRule)
+		}
+	}
+
+	if len(forwardingRules) == 0 {
+		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
+	}
+
+	_, err := l.client.LoadBalancers.AddForwardingRules(ctx, lbID, forwardingRules...)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Forwarding rules added successfully"), nil
+}
+
+func (l *LoadBalancersTool) removeForwardingRules(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	lbID, ok := req.GetArguments()["LoadBalancerID"].(string)
+	if !ok || lbID == "" {
+		return mcp.NewToolResultError("Load Balancer ID is required"), nil
+	}
+	forwardingRules := []godo.ForwardingRule{}
+
+	if rules, ok := req.GetArguments()["ForwardingRules"]; ok && rules != nil {
+		forwardingRulesList := rules.([]any)
+		for _, ruleData := range forwardingRulesList {
+			rule := ruleData.(map[string]any)
+
+			entryProtocol := rule["EntryProtocol"].(string)
+			entryPort := rule["EntryPort"].(int)
+			targetProtocol := rule["TargetProtocol"].(string)
+			targetPort := rule["TargetPort"].(int)
+
+			forwardingRule := godo.ForwardingRule{
+				EntryProtocol:  entryProtocol,
+				EntryPort:      entryPort,
+				TargetProtocol: targetProtocol,
+				TargetPort:     targetPort,
+			}
+			forwardingRules = append(forwardingRules, forwardingRule)
+		}
+	}
+
+	if len(forwardingRules) == 0 {
+		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
+	}
+
+	_, err := l.client.LoadBalancers.RemoveForwardingRules(ctx, lbID, forwardingRules...)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Forwarding rules removed successfully"), nil
+}
+
+func (l *LoadBalancersTool) Tools() []server.ServerTool {
+	return []server.ServerTool{
+		{
+			Handler: l.createLoadBalancer,
+			Tool: mcp.NewTool("load-balancer-create",
+				mcp.WithDescription("Create a new Load Balancer"),
+				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug (e.g., nyc3)")),
+				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the Droplets assigned to the load balancer")),
+				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
+			),
+		},
+		{
+			Handler: l.deleteLoadBalancer,
+			Tool: mcp.NewTool("load-balancer-delete",
+				mcp.WithDescription("Delete a Load Balancer by ID"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+			),
+		},
+		{
+			Handler: l.deleteLoadBalancerCache,
+			Tool: mcp.NewTool("load-balancer-delete-cache",
+				mcp.WithDescription("Delete the CDN cache of a global load balancer by ID"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+			),
+		},
+		{
+			Handler: l.getLoadBalancer,
+			Tool: mcp.NewTool("load-balancer-get",
+				mcp.WithDescription("Get a Load Balancer by ID"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+			),
+		},
+		{
+			Handler: l.listLoadBalancers,
+			Tool: mcp.NewTool("load-balancer-list",
+				mcp.WithDescription("List Load Balancers with pagination"),
+				mcp.WithNumber("Page", mcp.DefaultNumber(1), mcp.Description("Page number")),
+				mcp.WithNumber("PerPage", mcp.DefaultNumber(20), mcp.Description("Items per page")),
+			),
+		},
+		{
+			Handler: l.addDroplets,
+			Tool: mcp.NewTool("load-balancer-add-droplets",
+				mcp.WithDescription("Add Droplets to a Load Balancer"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the droplets to add")),
+			),
+		},
+		{
+			Handler: l.removeDroplets,
+			Tool: mcp.NewTool("load-balancer-remove-droplets",
+				mcp.WithDescription("Remove Droplets from a Load Balancer"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the droplets to remove")),
+			),
+		},
+		{
+			Handler: l.updateLoadBalancer,
+			Tool: mcp.NewTool("load-balancer-update",
+				mcp.WithDescription("Update a Load Balancer"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug (e.g., nyc3)")),
+				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the Droplets assigned to the load balancer")),
+				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
+			),
+		},
+		{
+			Handler: l.addForwardingRules,
+			Tool: mcp.NewTool("load-balancer-add-forwarding-rules",
+				mcp.WithDescription("Add Forwarding Rules to a Load Balancer"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules to add")),
+			),
+		},
+		{
+			Handler: l.removeForwardingRules,
+			Tool: mcp.NewTool("load-balancer-remove-forwarding-rules",
+				mcp.WithDescription("Remove Forwarding Rules from a Load Balancer"),
+				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules to remove")),
+			),
+		},
+	}
+}
