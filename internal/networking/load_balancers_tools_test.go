@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
-	// "errors"
 	"testing"
 
 	"github.com/digitalocean/godo"
@@ -36,22 +34,24 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "Successful create",
+			name: "Successful create with DropletIDs",
 			args: map[string]any{
 				"Region":     "nyc3",
+				"Name":       "example-lb",
 				"DropletIDs": []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 					map[string]any{
 						"EntryProtocol":  "https",
-						"EntryPort":      443,
+						"EntryPort":      float64(443),
 						"TargetProtocol": "https",
-						"TargetPort":     443,
+						"TargetPort":     float64(443),
+						"TlsPassthrough": true,
 					},
 				},
 			},
@@ -59,6 +59,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 				m.EXPECT().
 					Create(gomock.Any(), &godo.LoadBalancerRequest{
 						Region:     "nyc3",
+						Name:       "example-lb",
 						DropletIDs: []int{111, 222},
 						ForwardingRules: []godo.ForwardingRule{
 							{
@@ -72,6 +73,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 								EntryPort:      443,
 								TargetProtocol: "https",
 								TargetPort:     443,
+								TlsPassthrough: true,
 							},
 						},
 					}).
@@ -83,19 +85,21 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			name: "API error",
 			args: map[string]any{
 				"Region":     "nyc3",
+				"Name":       "example-lb",
 				"DropletIDs": []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 					map[string]any{
 						"EntryProtocol":  "https",
-						"EntryPort":      443,
+						"EntryPort":      float64(443),
 						"TargetProtocol": "https",
-						"TargetPort":     443,
+						"TargetPort":     float64(443),
+						"TlsPassthrough": true,
 					},
 				},
 			},
@@ -103,6 +107,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 				m.EXPECT().
 					Create(gomock.Any(), &godo.LoadBalancerRequest{
 						Region:     "nyc3",
+						Name:       "example-lb",
 						DropletIDs: []int{111, 222},
 						ForwardingRules: []godo.ForwardingRule{
 							{
@@ -116,6 +121,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 								EntryPort:      443,
 								TargetProtocol: "https",
 								TargetPort:     443,
+								TlsPassthrough: true,
 							},
 						},
 					}).
@@ -598,6 +604,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 
 	testLoadBalancer := &godo.LoadBalancer{
 		ID:         "12345",
+		Name:       "example-lb-updated",
 		Region:     &godo.Region{Slug: "nyc3"},
 		DropletIDs: []int{111, 222},
 	}
@@ -613,14 +620,15 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			name: "Successful update",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
+				"Name":           "example-lb-updated",
 				"Region":         "nyc3",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -628,6 +636,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 				m.EXPECT().
 					Update(gomock.Any(), "12345", &godo.LoadBalancerRequest{
 						Region:     "nyc3",
+						Name:       "example-lb-updated",
 						DropletIDs: []int{111, 222},
 						ForwardingRules: []godo.ForwardingRule{
 							{
@@ -646,14 +655,15 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			name: "API error",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
+				"Name":           "example-lb",
 				"Region":         "nyc3",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -661,6 +671,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 				m.EXPECT().
 					Update(gomock.Any(), "12345", &godo.LoadBalancerRequest{
 						Region:     "nyc3",
+						Name:       "example-lb",
 						DropletIDs: []int{111, 222},
 						ForwardingRules: []godo.ForwardingRule{
 							{
@@ -680,13 +691,14 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			name: "Missing LoadBalancerID argument",
 			args: map[string]any{
 				"Region":     "nyc3",
+				"Name":       "example-lb",
 				"DropletIDs": []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -697,6 +709,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			name: "Missing Region argument",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
+				"Name":           "example-lb",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
@@ -714,13 +727,14 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			name: "Missing DropletIDs argument",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
+				"Name":           "example-lb",
 				"Region":         "nyc3",
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -731,6 +745,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			name: "Missing ForwardingRules argument",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
+				"Name":           "example-lb",
 				"Region":         "nyc3",
 				"DropletIDs":     []any{float64(111), float64(222)},
 			},
@@ -782,9 +797,9 @@ func TestLoadBalancersTool_addForwardingRules(t *testing.T) {
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -809,9 +824,9 @@ func TestLoadBalancersTool_addForwardingRules(t *testing.T) {
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -836,9 +851,9 @@ func TestLoadBalancersTool_addForwardingRules(t *testing.T) {
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -896,9 +911,9 @@ func TestLoadBalancersTool_removeForwardingRules(t *testing.T) {
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},
@@ -923,9 +938,9 @@ func TestLoadBalancersTool_removeForwardingRules(t *testing.T) {
 				"ForwardingRules": []any{
 					map[string]any{
 						"EntryProtocol":  "http",
-						"EntryPort":      80,
+						"EntryPort":      float64(80),
 						"TargetProtocol": "http",
-						"TargetPort":     80,
+						"TargetPort":     float64(80),
 					},
 				},
 			},

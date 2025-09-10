@@ -20,9 +20,64 @@ func NewLoadBalancersTool(client *godo.Client) *LoadBalancersTool {
 	}
 }
 
+func parseForwardingRules(rules []any) ([]godo.ForwardingRule, error) {
+	forwardingRules := []godo.ForwardingRule{}
+	for _, ruleData := range rules {
+		rule, ok := ruleData.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid rule format")
+		}
+
+		entryProtocol, ok := rule["EntryProtocol"].(string)
+		if !ok {
+			return nil, fmt.Errorf("EntryProtocol must be a string")
+		}
+		entryPort, ok := rule["EntryPort"].(float64)
+		if !ok {
+			return nil, fmt.Errorf("EntryPort must be a number")
+		}
+		targetProtocol, ok := rule["TargetProtocol"].(string)
+		if !ok {
+			return nil, fmt.Errorf("TargetProtocol must be a string")
+		}
+		targetPort, ok := rule["TargetPort"].(float64)
+		if !ok {
+			return nil, fmt.Errorf("TargetPort must be a number")
+		}
+		// set tlsPassthrough to false if not provided
+		tlsPassthrough := false
+		if val, ok := rule["TlsPassthrough"].(bool); ok {
+			tlsPassthrough = val
+		}
+		// set the certificate id to empty string if not provided
+		certificateID := ""
+		if val, ok := rule["CertificateID"].(string); ok {
+			certificateID = val
+		}
+
+		forwardingRule := godo.ForwardingRule{
+			EntryProtocol:  entryProtocol,
+			EntryPort:      int(entryPort),
+			TargetProtocol: targetProtocol,
+			TargetPort:     int(targetPort),
+			TlsPassthrough: tlsPassthrough,
+			CertificateID:  certificateID,
+		}
+		forwardingRules = append(forwardingRules, forwardingRule)
+	}
+	return forwardingRules, nil
+}
+
 func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
-	region := args["Region"].(string)
+	name, ok := args["Name"].(string)
+	if !ok || name == "" {
+		return mcp.NewToolResultError("Name is required"), nil
+	}
+	region, ok := args["Region"].(string)
+	if !ok || region == "" {
+		return mcp.NewToolResultError("Region is required"), nil
+	}
 	dropletIDs := args["DropletIDs"].([]any)
 	dIDs := make([]int, len(dropletIDs))
 	for i, id := range dropletIDs {
@@ -31,25 +86,13 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 		}
 	}
 
-	// Process forwarding rules
-	var forwardingRules []godo.ForwardingRule
+	// Parse forwarding rules
+	forwardingRules := []godo.ForwardingRule{}
 	if rules, ok := args["ForwardingRules"]; ok && rules != nil {
-		forwardingRulesList := rules.([]any)
-		for _, ruleData := range forwardingRulesList {
-			rule := ruleData.(map[string]any)
-
-			entryProtocol := rule["EntryProtocol"].(string)
-			entryPort := rule["EntryPort"].(int)
-			targetProtocol := rule["TargetProtocol"].(string)
-			targetPort := rule["TargetPort"].(int)
-
-			forwardingRule := godo.ForwardingRule{
-				EntryProtocol:  entryProtocol,
-				EntryPort:      entryPort,
-				TargetProtocol: targetProtocol,
-				TargetPort:     targetPort,
-			}
-			forwardingRules = append(forwardingRules, forwardingRule)
+		var err error
+		forwardingRules, err = parseForwardingRules(rules.([]any))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
 		}
 	}
 
@@ -58,6 +101,7 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 	}
 
 	lbr := &godo.LoadBalancerRequest{
+		Name:            name,
 		Region:          region,
 		DropletIDs:      dIDs,
 		ForwardingRules: forwardingRules,
@@ -188,6 +232,10 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 	if !ok || lbID == "" {
 		return mcp.NewToolResultError("Load Balancer ID is required"), nil
 	}
+	name, ok := args["Name"].(string)
+	if !ok || name == "" {
+		return mcp.NewToolResultError("Name is required"), nil
+	}
 	region, ok := args["Region"].(string)
 	if !ok || region == "" {
 		return mcp.NewToolResultError("Region is required"), nil
@@ -203,33 +251,21 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 		}
 	}
 
-	// Process forwarding rules
-	var forwardingRules []godo.ForwardingRule
+	// Parse forwarding rules
+	forwardingRules := []godo.ForwardingRule{}
 	if rules, ok := args["ForwardingRules"]; ok && rules != nil {
-		forwardingRulesList := rules.([]any)
-		for _, ruleData := range forwardingRulesList {
-			rule := ruleData.(map[string]any)
-
-			entryProtocol := rule["EntryProtocol"].(string)
-			entryPort := rule["EntryPort"].(int)
-			targetProtocol := rule["TargetProtocol"].(string)
-			targetPort := rule["TargetPort"].(int)
-
-			forwardingRule := godo.ForwardingRule{
-				EntryProtocol:  entryProtocol,
-				EntryPort:      entryPort,
-				TargetProtocol: targetProtocol,
-				TargetPort:     targetPort,
-			}
-			forwardingRules = append(forwardingRules, forwardingRule)
+		var err error
+		forwardingRules, err = parseForwardingRules(rules.([]any))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
 		}
 	}
-
 	if len(forwardingRules) == 0 {
 		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
 	}
 
 	lbr := &godo.LoadBalancerRequest{
+		Name:            name,
 		Region:          region,
 		DropletIDs:      dIDs,
 		ForwardingRules: forwardingRules,
@@ -250,28 +286,16 @@ func (l *LoadBalancersTool) addForwardingRules(ctx context.Context, req mcp.Call
 	if !ok || lbID == "" {
 		return mcp.NewToolResultError("Load Balancer ID is required"), nil
 	}
+
+	// Parse forwarding rules
 	forwardingRules := []godo.ForwardingRule{}
-
 	if rules, ok := req.GetArguments()["ForwardingRules"]; ok && rules != nil {
-		forwardingRulesList := rules.([]any)
-		for _, ruleData := range forwardingRulesList {
-			rule := ruleData.(map[string]any)
-
-			entryProtocol := rule["EntryProtocol"].(string)
-			entryPort := rule["EntryPort"].(int)
-			targetProtocol := rule["TargetProtocol"].(string)
-			targetPort := rule["TargetPort"].(int)
-
-			forwardingRule := godo.ForwardingRule{
-				EntryProtocol:  entryProtocol,
-				EntryPort:      entryPort,
-				TargetProtocol: targetProtocol,
-				TargetPort:     targetPort,
-			}
-			forwardingRules = append(forwardingRules, forwardingRule)
+		var err error
+		forwardingRules, err = parseForwardingRules(rules.([]any))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
 		}
 	}
-
 	if len(forwardingRules) == 0 {
 		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
 	}
@@ -289,28 +313,16 @@ func (l *LoadBalancersTool) removeForwardingRules(ctx context.Context, req mcp.C
 	if !ok || lbID == "" {
 		return mcp.NewToolResultError("Load Balancer ID is required"), nil
 	}
+
+	// Parse forwarding rules
 	forwardingRules := []godo.ForwardingRule{}
-
 	if rules, ok := req.GetArguments()["ForwardingRules"]; ok && rules != nil {
-		forwardingRulesList := rules.([]any)
-		for _, ruleData := range forwardingRulesList {
-			rule := ruleData.(map[string]any)
-
-			entryProtocol := rule["EntryProtocol"].(string)
-			entryPort := rule["EntryPort"].(int)
-			targetProtocol := rule["TargetProtocol"].(string)
-			targetPort := rule["TargetPort"].(int)
-
-			forwardingRule := godo.ForwardingRule{
-				EntryProtocol:  entryProtocol,
-				EntryPort:      entryPort,
-				TargetProtocol: targetProtocol,
-				TargetPort:     targetPort,
-			}
-			forwardingRules = append(forwardingRules, forwardingRule)
+		var err error
+		forwardingRules, err = parseForwardingRules(rules.([]any))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
 		}
 	}
-
 	if len(forwardingRules) == 0 {
 		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
 	}
@@ -329,6 +341,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 			Handler: l.createLoadBalancer,
 			Tool: mcp.NewTool("load-balancer-create",
 				mcp.WithDescription("Create a new Load Balancer"),
+				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the load balancer")),
 				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug (e.g., nyc3)")),
 				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the Droplets assigned to the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
@@ -384,6 +397,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 			Tool: mcp.NewTool("load-balancer-update",
 				mcp.WithDescription("Update a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
+				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the load balancer")),
 				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug (e.g., nyc3)")),
 				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the Droplets assigned to the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
