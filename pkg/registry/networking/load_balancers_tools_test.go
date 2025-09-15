@@ -22,108 +22,154 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	testLoadBalancer := &godo.LoadBalancer{
+	testLoadBalancerWithDropletIDs := &godo.LoadBalancer{
 		ID:         "12345",
 		Region:     &godo.Region{Slug: "nyc3"},
 		DropletIDs: []int{111, 222},
+	}
+	testLoadBalancerWithTag := &godo.LoadBalancer{
+		ID:     "12345",
+		Region: &godo.Region{Slug: "nyc3"},
+		Tag:    "example-tag",
+	}
+	forwardingRulesArg := []any{
+		map[string]any{
+			"EntryProtocol":  "http",
+			"EntryPort":      float64(80),
+			"TargetProtocol": "http",
+			"TargetPort":     float64(80),
+		},
+		map[string]any{
+			"EntryProtocol":  "https",
+			"EntryPort":      float64(443),
+			"TargetProtocol": "https",
+			"TargetPort":     float64(443),
+			"TlsPassthrough": true,
+		},
+	}
+	mockForwardingRules := []godo.ForwardingRule{
+		{
+			EntryProtocol:  "http",
+			EntryPort:      80,
+			TargetProtocol: "http",
+			TargetPort:     80,
+		},
+		{
+			EntryProtocol:  "https",
+			EntryPort:      443,
+			TargetProtocol: "https",
+			TargetPort:     443,
+			TlsPassthrough: true,
+		},
 	}
 	tests := []struct {
 		name        string
 		args        map[string]any
 		mockSetup   func(m *MockLoadBalancersService)
 		expectError bool
+		expectText  string
 	}{
 		{
 			name: "Successful create with DropletIDs",
 			args: map[string]any{
-				"Region":     "nyc3",
-				"Name":       "example-lb",
-				"DropletIDs": []any{float64(111), float64(222)},
-				"ForwardingRules": []any{
-					map[string]any{
-						"EntryProtocol":  "http",
-						"EntryPort":      float64(80),
-						"TargetProtocol": "http",
-						"TargetPort":     float64(80),
-					},
-					map[string]any{
-						"EntryProtocol":  "https",
-						"EntryPort":      float64(443),
-						"TargetProtocol": "https",
-						"TargetPort":     float64(443),
-						"TlsPassthrough": true,
-					},
-				},
+				"Region":          "nyc3",
+				"Name":            "example-lb",
+				"DropletIDs":      []any{float64(111), float64(222)},
+				"ForwardingRules": forwardingRulesArg,
 			},
 			mockSetup: func(m *MockLoadBalancersService) {
 				m.EXPECT().
 					Create(gomock.Any(), &godo.LoadBalancerRequest{
-						Region:     "nyc3",
-						Name:       "example-lb",
-						DropletIDs: []int{111, 222},
-						ForwardingRules: []godo.ForwardingRule{
-							{
-								EntryProtocol:  "http",
-								EntryPort:      80,
-								TargetProtocol: "http",
-								TargetPort:     80,
-							},
-							{
-								EntryProtocol:  "https",
-								EntryPort:      443,
-								TargetProtocol: "https",
-								TargetPort:     443,
-								TlsPassthrough: true,
-							},
-						},
+						Region:          "nyc3",
+						Name:            "example-lb",
+						DropletIDs:      []int{111, 222},
+						ForwardingRules: mockForwardingRules,
 					}).
-					Return(testLoadBalancer, nil, nil).
+					Return(testLoadBalancerWithDropletIDs, nil, nil).
 					Times(1)
 			},
 		},
 		{
-			name: "API error",
+			name: "Successful create with Tag",
 			args: map[string]any{
-				"Region":     "nyc3",
-				"Name":       "example-lb",
-				"DropletIDs": []any{float64(111), float64(222)},
-				"ForwardingRules": []any{
-					map[string]any{
-						"EntryProtocol":  "http",
-						"EntryPort":      float64(80),
-						"TargetProtocol": "http",
-						"TargetPort":     float64(80),
-					},
-					map[string]any{
-						"EntryProtocol":  "https",
-						"EntryPort":      float64(443),
-						"TargetProtocol": "https",
-						"TargetPort":     float64(443),
-						"TlsPassthrough": true,
-					},
-				},
+				"Region":          "nyc3",
+				"Name":            "example-lb",
+				"Tag":             "example-tag",
+				"ForwardingRules": forwardingRulesArg,
 			},
 			mockSetup: func(m *MockLoadBalancersService) {
 				m.EXPECT().
 					Create(gomock.Any(), &godo.LoadBalancerRequest{
-						Region:     "nyc3",
-						Name:       "example-lb",
-						DropletIDs: []int{111, 222},
-						ForwardingRules: []godo.ForwardingRule{
-							{
-								EntryProtocol:  "http",
-								EntryPort:      80,
-								TargetProtocol: "http",
-								TargetPort:     80,
-							},
-							{
-								EntryProtocol:  "https",
-								EntryPort:      443,
-								TargetProtocol: "https",
-								TargetPort:     443,
-								TlsPassthrough: true,
-							},
-						},
+						Region:          "nyc3",
+						Name:            "example-lb",
+						Tag:             "example-tag",
+						ForwardingRules: mockForwardingRules,
+					}).
+					Return(testLoadBalancerWithTag, nil, nil).
+					Times(1)
+			},
+		},
+		{
+			name: "Missing Region argument",
+			args: map[string]any{
+				"Name":            "example-lb",
+				"DropletIDs":      []any{float64(111), float64(222)},
+				"ForwardingRules": forwardingRulesArg,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Region is required",
+		},
+		{
+			name: "Missing Name argument",
+			args: map[string]any{
+				"Region":          "nyc3",
+				"DropletIDs":      []any{float64(111), float64(222)},
+				"ForwardingRules": forwardingRulesArg,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Name is required",
+		},
+		{
+			name: "Missing DropletIDs and Tag arguments",
+			args: map[string]any{
+				"Region":          "nyc3",
+				"Name":            "example-lb",
+				"ForwardingRules": forwardingRulesArg,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Either DropletIDs or Tag must be provided",
+		},
+		{
+			name: "Both DropletIDs and Tag arguments provided",
+			args: map[string]any{
+				"Region":          "nyc3",
+				"Name":            "example-lb",
+				"DropletIDs":      []any{float64(111), float64(222)},
+				"Tag":             "web-servers",
+				"ForwardingRules": forwardingRulesArg,
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Only one of DropletIDs or Tag can be provided",
+		},
+		{
+			name: "API error",
+			args: map[string]any{
+				"Region":          "nyc3",
+				"Name":            "example-lb",
+				"DropletIDs":      []any{float64(111), float64(222)},
+				"ForwardingRules": forwardingRulesArg,
+			},
+			mockSetup: func(m *MockLoadBalancersService) {
+				m.EXPECT().
+					Create(gomock.Any(), &godo.LoadBalancerRequest{
+						Region:          "nyc3",
+						Name:            "example-lb",
+						DropletIDs:      []int{111, 222},
+						ForwardingRules: mockForwardingRules,
 					}).
 					Return(nil, nil, errors.New("api error")).
 					Times(1)
@@ -151,7 +197,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			require.False(t, resp.IsError)
 			var outLoadBalancer godo.LoadBalancer
 			require.NoError(t, json.Unmarshal([]byte(resp.Content[0].(mcp.TextContent).Text), &outLoadBalancer))
-			require.Equal(t, testLoadBalancer.ID, outLoadBalancer.ID)
+			require.Equal(t, testLoadBalancerWithDropletIDs.ID, outLoadBalancer.ID)
 		})
 	}
 }
