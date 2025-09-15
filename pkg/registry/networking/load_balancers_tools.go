@@ -258,16 +258,6 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 	if !ok || region == "" {
 		return mcp.NewToolResultError("Region is required"), nil
 	}
-	dropletIds, ok := args["DropletIDs"].([]any)
-	if !ok {
-		return mcp.NewToolResultError("Droplet IDs are required"), nil
-	}
-	dIDs := make([]int, len(dropletIds))
-	for i, id := range dropletIds {
-		if did, ok := id.(float64); ok {
-			dIDs[i] = int(did)
-		}
-	}
 
 	// Parse forwarding rules
 	forwardingRules := []godo.ForwardingRule{}
@@ -285,9 +275,34 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 	lbr := &godo.LoadBalancerRequest{
 		Name:            name,
 		Region:          region,
-		DropletIDs:      dIDs,
 		ForwardingRules: forwardingRules,
 	}
+
+	tag, _ := args["Tag"].(string)
+	dropletIDs, _ := args["DropletIDs"].([]any)
+
+	// Check that either DropletIDs or Tag is provided, but not both
+	if len(dropletIDs) == 0 && tag == "" {
+		return mcp.NewToolResultError("Either DropletIDs or Tag must be provided"), nil
+	}
+	if len(dropletIDs) > 0 && tag != "" {
+		return mcp.NewToolResultError("Both DropletIDs and Tag cannot be provided together"), nil
+	}
+
+	// If droplet IDs are provided, make request with them; otherwise, make request with tag
+	if len(dropletIDs) > 0 {
+		// Parse droplet IDs as ints
+		intDropletIDs := make([]int, len(dropletIDs))
+		for i, id := range dropletIDs {
+			if did, ok := id.(float64); ok {
+				intDropletIDs[i] = int(did)
+			}
+		}
+		lbr.DropletIDs = intDropletIDs
+	} else {
+		lbr.Tag = tag
+	}
+
 	lb, _, err := l.client.LoadBalancers.Update(ctx, lbID, lbr)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
@@ -361,8 +376,8 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithDescription("Create a new Load Balancer. Either DropletIDs or Tag must be provided, but not both."),
 				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the load balancer")),
 				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug (e.g., nyc3)")),
-				mcp.WithArray("DropletIDs", mcp.DefaultArray([]int{}), mcp.Description("IDs of the Droplets assigned to the load balancer")),
-				mcp.WithString("Tag", mcp.DefaultString(""), mcp.Description("Droplet tag corresponding to Droplets assigned to the load balancer")),
+				mcp.WithArray("DropletIDs", mcp.Description("IDs of the Droplets assigned to the load balancer")),
+				mcp.WithString("Tag", mcp.Description("Droplet tag corresponding to Droplets assigned to the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
 			),
 		},
@@ -418,7 +433,8 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the load balancer")),
 				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug (e.g., nyc3)")),
-				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the Droplets assigned to the load balancer")),
+				mcp.WithArray("DropletIDs", mcp.Description("IDs of the Droplets assigned to the load balancer")),
+				mcp.WithString("Tag", mcp.Description("Droplet tag corresponding to Droplets assigned to the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
 			),
 		},
