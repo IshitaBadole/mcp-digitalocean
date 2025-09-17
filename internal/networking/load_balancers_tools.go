@@ -78,6 +78,11 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 	if !ok || region == "" {
 		return mcp.NewToolResultError("Region is required"), nil
 	}
+	lbType, _ := args["Type"].(string)
+	network, _ := args["Network"].(string)
+	sizeUnit, _ := args["SizeUnit"].(float64)
+	networkStack, _ := args["NetworkStack"].(string)
+	projectID, _ := args["ProjectID"].(string)
 
 	// Parse forwarding rules
 	forwardingRules := []godo.ForwardingRule{}
@@ -97,6 +102,11 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 		Name:            name,
 		Region:          region,
 		ForwardingRules: forwardingRules,
+		SizeUnit:        uint32(sizeUnit),
+		Type:            lbType,
+		Network:         network,
+		NetworkStack:    networkStack,
+		ProjectID:       projectID,
 	}
 
 	tag, _ := args["Tag"].(string)
@@ -258,6 +268,11 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 	if !ok || region == "" {
 		return mcp.NewToolResultError("Region is required"), nil
 	}
+	lbType, _ := args["Type"].(string)
+	network, _ := args["Network"].(string)
+	sizeUnit, _ := args["SizeUnit"].(float64)
+	networkStack, _ := args["NetworkStack"].(string)
+	projectID, _ := args["ProjectID"].(string)
 
 	// Parse forwarding rules
 	forwardingRules := []godo.ForwardingRule{}
@@ -276,6 +291,11 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 		Name:            name,
 		Region:          region,
 		ForwardingRules: forwardingRules,
+		SizeUnit:        uint32(sizeUnit),
+		Type:            lbType,
+		Network:         network,
+		NetworkStack:    networkStack,
+		ProjectID:       projectID,
 	}
 
 	tag, _ := args["Tag"].(string)
@@ -379,6 +399,11 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithArray("DropletIDs", mcp.Description("IDs of the Droplets assigned to the load balancer")),
 				mcp.WithString("Tag", mcp.Description("Droplet tag corresponding to Droplets assigned to the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
+				mcp.WithString("Type", mcp.Description("Type of the load balancer (REGIONAL, REGIONAL_NETWORK, GLOBAL)")),
+				mcp.WithString("Network", mcp.Description("Network type of the load balancer (EXTERNAL, INTERNAL)")),
+				mcp.WithNumber("SizeUnit", mcp.DefaultNumber(2), mcp.Description("Size of the load balancer in units appropriate to its type")),
+				mcp.WithString("NetworkStack", mcp.Description("Network stack of the load balancer (IPV4, DUALSTACK)")),
+				mcp.WithString("ProjectID", mcp.Description("The ID of the project that the load balancer is associated with.")),
 			),
 		},
 		{
@@ -436,6 +461,11 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithArray("DropletIDs", mcp.Description("IDs of the Droplets assigned to the load balancer")),
 				mcp.WithString("Tag", mcp.Description("Droplet tag corresponding to Droplets assigned to the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules for a load balancer")),
+				mcp.WithString("Type", mcp.DefaultString("REGIONAL"), mcp.Description("Type of the load balancer (REGIONAL, REGIONAL_NETWORK, GLOBAL)")),
+				mcp.WithString("Network", mcp.DefaultString("EXTERNAL"), mcp.Description("Network type of the load balancer (EXTERNAL, INTERNAL)")),
+				mcp.WithNumber("SizeUnit", mcp.DefaultNumber(2), mcp.Description("Size of the load balancer in units appropriate to its type")),
+				mcp.WithString("NetworkStack", mcp.DefaultString("IPV4"), mcp.Description("Network stack of the load balancer (IPV4, DUALSTACK)")),
+				mcp.WithString("ProjectID", mcp.Description("Project ID to which the load balancer will be assigned")),
 			),
 		},
 		{

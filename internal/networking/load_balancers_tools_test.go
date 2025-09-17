@@ -27,11 +27,6 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 		Region:     &godo.Region{Slug: "nyc3"},
 		DropletIDs: []int{111, 222},
 	}
-	testLoadBalancerWithTag := &godo.LoadBalancer{
-		ID:     "12345",
-		Region: &godo.Region{Slug: "nyc3"},
-		Tag:    "example-tag",
-	}
 	forwardingRulesArg := []any{
 		map[string]any{
 			"EntryProtocol":  "http",
@@ -105,7 +100,50 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 						Tag:             "example-tag",
 						ForwardingRules: mockForwardingRules,
 					}).
-					Return(testLoadBalancerWithTag, nil, nil).
+					Return(&godo.LoadBalancer{
+						ID:     "12345",
+						Region: &godo.Region{Slug: "nyc3"},
+						Tag:    "example-tag",
+					}, nil, nil).
+					Times(1)
+			},
+		},
+		{
+			name: "Successful create with optional arguments provided",
+			args: map[string]any{
+				"Region":          "nyc3",
+				"Name":            "example-lb",
+				"DropletIDs":      []any{float64(111), float64(222)},
+				"ForwardingRules": forwardingRulesArg,
+				"Type":            "REGIONAL_NETWORK",
+				"Network":         "INTERNAL",
+				"SizeUnit":        float64(4),
+				"NetworkStack":    "DUALSTACK",
+				"ProjectID":       "example-project-id",
+			},
+			mockSetup: func(m *MockLoadBalancersService) {
+				m.EXPECT().
+					Create(gomock.Any(), &godo.LoadBalancerRequest{
+						Region:          "nyc3",
+						Name:            "example-lb",
+						DropletIDs:      []int{111, 222},
+						ForwardingRules: mockForwardingRules,
+						SizeUnit:        4,
+						Type:            "REGIONAL_NETWORK",
+						Network:         "INTERNAL",
+						NetworkStack:    "DUALSTACK",
+						ProjectID:       "example-project-id",
+					}).
+					Return(&godo.LoadBalancer{
+						ID:           "12345",
+						Region:       &godo.Region{Slug: "nyc3"},
+						DropletIDs:   []int{111, 222},
+						SizeUnit:     4,
+						Type:         "REGIONAL_NETWORK",
+						Network:      "INTERNAL",
+						NetworkStack: "DUALSTACK",
+						ProjectID:    "example-project-id",
+					}, nil, nil).
 					Times(1)
 			},
 		},
@@ -153,7 +191,18 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			},
 			mockSetup:   nil,
 			expectError: true,
-			expectText:  "Only one of DropletIDs or Tag can be provided",
+			expectText:  "Both DropletIDs and Tag cannot be provided together",
+		},
+		{
+			name: "Missing ForwardingRules argument",
+			args: map[string]any{
+				"Region":     "nyc3",
+				"Name":       "example-lb",
+				"DropletIDs": []any{float64(111), float64(222)},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "At least one forwarding rule must be provided",
 		},
 		{
 			name: "API error",
@@ -190,6 +239,9 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			if tc.expectError {
 				require.NotNil(t, resp)
 				require.True(t, resp.IsError)
+				if tc.expectText != "" {
+					require.Contains(t, resp.Content[0].(mcp.TextContent).Text, tc.expectText)
+				}
 				return
 			}
 			require.NoError(t, err)
@@ -698,6 +750,150 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			},
 		},
 		{
+			name: "Successful update with optional arguments provided",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"Name":           "example-lb-updated",
+				"Region":         "nyc3",
+				"DropletIDs":     []any{float64(111), float64(222)},
+				"ForwardingRules": []any{
+					map[string]any{
+						"EntryProtocol":  "http",
+						"EntryPort":      float64(80),
+						"TargetProtocol": "http",
+						"TargetPort":     float64(80),
+					},
+				},
+				"Type":         "REGIONAL_NETWORK",
+				"Network":      "INTERNAL",
+				"SizeUnit":     float64(4),
+				"NetworkStack": "DUALSTACK",
+				"ProjectID":    "example-project-id",
+			},
+			mockSetup: func(m *MockLoadBalancersService) {
+				m.EXPECT().
+					Update(gomock.Any(), "12345", &godo.LoadBalancerRequest{
+						Region:     "nyc3",
+						Name:       "example-lb-updated",
+						DropletIDs: []int{111, 222},
+						ForwardingRules: []godo.ForwardingRule{
+							{
+								EntryProtocol:  "http",
+								EntryPort:      80,
+								TargetProtocol: "http",
+								TargetPort:     80,
+							},
+						},
+						SizeUnit:     4,
+						Type:         "REGIONAL_NETWORK",
+						Network:      "INTERNAL",
+						NetworkStack: "DUALSTACK",
+						ProjectID:    "example-project-id",
+					}).
+					Return(&godo.LoadBalancer{
+						ID:           "12345",
+						Region:       &godo.Region{Slug: "nyc3"},
+						DropletIDs:   []int{111, 222},
+						SizeUnit:     4,
+						Type:         "REGIONAL_NETWORK",
+						Network:      "INTERNAL",
+						NetworkStack: "DUALSTACK",
+						ProjectID:    "example-project-id",
+					}, nil, nil).
+					Times(1)
+			},
+		},
+		{
+			name: "Missing LoadBalancerID argument",
+			args: map[string]any{
+				"Region":     "nyc3",
+				"Name":       "example-lb",
+				"DropletIDs": []any{float64(111), float64(222)},
+				"ForwardingRules": []any{
+					map[string]any{
+						"EntryProtocol":  "http",
+						"EntryPort":      float64(80),
+						"TargetProtocol": "http",
+						"TargetPort":     float64(80),
+					},
+				},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Load Balancer ID is required",
+		},
+		{
+			name: "Missing Region argument",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"Name":           "example-lb",
+				"DropletIDs":     []any{float64(111), float64(222)},
+				"ForwardingRules": []any{
+					map[string]any{
+						"EntryProtocol":  "http",
+						"EntryPort":      float64(80),
+						"TargetProtocol": "http",
+						"TargetPort":     float64(80),
+					},
+				},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Region is required",
+		},
+		{
+			name: "Missing DropletIDs and Tag arguments",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"Region":         "nyc3",
+				"Name":           "example-lb",
+				"ForwardingRules": []any{
+					map[string]any{
+						"EntryProtocol":  "http",
+						"EntryPort":      float64(80),
+						"TargetProtocol": "http",
+						"TargetPort":     float64(80),
+					},
+				},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Either DropletIDs or Tag must be provided",
+		},
+		{
+			name: "Both DropletIDs and Tag arguments provided",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"Region":         "nyc3",
+				"Name":           "example-lb",
+				"DropletIDs":     []any{float64(111), float64(222)},
+				"Tag":            "web-servers",
+				"ForwardingRules": []any{
+					map[string]any{
+						"EntryProtocol":  "http",
+						"EntryPort":      float64(80),
+						"TargetProtocol": "http",
+						"TargetPort":     float64(80),
+					},
+				},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Both DropletIDs and Tag cannot be provided together",
+		},
+		{
+			name: "Missing ForwardingRules argument",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"Name":           "example-lb",
+				"Region":         "nyc3",
+				"DropletIDs":     []any{float64(111), float64(222)},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "At least one forwarding rule must be provided",
+		},
+		{
 			name: "API error",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
@@ -733,72 +929,6 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			},
 			expectError: true,
 		},
-		{
-			name: "Missing LoadBalancerID argument",
-			args: map[string]any{
-				"Region":     "nyc3",
-				"Name":       "example-lb",
-				"DropletIDs": []any{float64(111), float64(222)},
-				"ForwardingRules": []any{
-					map[string]any{
-						"EntryProtocol":  "http",
-						"EntryPort":      float64(80),
-						"TargetProtocol": "http",
-						"TargetPort":     float64(80),
-					},
-				},
-			},
-			mockSetup:   nil,
-			expectError: true,
-		},
-		{
-			name: "Missing Region argument",
-			args: map[string]any{
-				"LoadBalancerID": "12345",
-				"Name":           "example-lb",
-				"DropletIDs":     []any{float64(111), float64(222)},
-				"ForwardingRules": []any{
-					map[string]any{
-						"EntryProtocol":  "http",
-						"EntryPort":      80,
-						"TargetProtocol": "http",
-						"TargetPort":     80,
-					},
-				},
-			},
-			mockSetup:   nil,
-			expectError: true,
-		},
-		{
-			name: "Missing DropletIDs argument",
-			args: map[string]any{
-				"LoadBalancerID": "12345",
-				"Name":           "example-lb",
-				"Region":         "nyc3",
-				"ForwardingRules": []any{
-					map[string]any{
-						"EntryProtocol":  "http",
-						"EntryPort":      float64(80),
-						"TargetProtocol": "http",
-						"TargetPort":     float64(80),
-					},
-				},
-			},
-			mockSetup:   nil,
-			expectError: true,
-		},
-		{
-			name: "Missing ForwardingRules argument",
-			args: map[string]any{
-				"LoadBalancerID": "12345",
-				"Name":           "example-lb",
-				"Region":         "nyc3",
-				"DropletIDs":     []any{float64(111), float64(222)},
-			},
-			mockSetup:   nil,
-			expectError: true,
-			expectText:  "Forwarding Rules are required",
-		},
 	}
 
 	for _, tc := range tests {
@@ -813,6 +943,9 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			if tc.expectError {
 				require.NotNil(t, resp)
 				require.True(t, resp.IsError)
+				if tc.expectText != "" {
+					require.Contains(t, resp.Content[0].(mcp.TextContent).Text, tc.expectText)
+				}
 				return
 			}
 			require.NoError(t, err)
@@ -821,6 +954,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			var outLoadBalancer godo.LoadBalancer
 			require.NoError(t, json.Unmarshal([]byte(resp.Content[0].(mcp.TextContent).Text), &outLoadBalancer))
 			require.Equal(t, testLoadBalancer.ID, outLoadBalancer.ID)
+			require.Contains(t, resp.Content[0].(mcp.TextContent).Text, tc.expectText)
 		})
 	}
 }
