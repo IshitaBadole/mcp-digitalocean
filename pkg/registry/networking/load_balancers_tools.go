@@ -111,13 +111,8 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 
 	tag, _ := args["Tag"].(string)
 	dropletIDs, _ := args["DropletIDs"].([]any)
-
-	// Check that either DropletIDs or Tag is provided, but not both
-	if len(dropletIDs) == 0 && tag == "" {
-		return mcp.NewToolResultError("Either DropletIDs or Tag must be provided"), nil
-	}
 	if len(dropletIDs) > 0 && tag != "" {
-		return mcp.NewToolResultError("Both DropletIDs and Tag cannot be provided together"), nil
+		return mcp.NewToolResultError("Only one target identifier (e.g. tag, droplets) can be specified"), nil
 	}
 
 	// If droplet IDs are provided, make request with them; otherwise, make request with tag
@@ -300,13 +295,8 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 
 	tag, _ := args["Tag"].(string)
 	dropletIDs, _ := args["DropletIDs"].([]any)
-
-	// Check that either DropletIDs or Tag is provided, but not both
-	if len(dropletIDs) == 0 && tag == "" {
-		return mcp.NewToolResultError("Either DropletIDs or Tag must be provided"), nil
-	}
 	if len(dropletIDs) > 0 && tag != "" {
-		return mcp.NewToolResultError("Both DropletIDs and Tag cannot be provided together"), nil
+		return mcp.NewToolResultError("Only one target identifier (e.g. tag, droplets) can be specified"), nil
 	}
 
 	// If droplet IDs are provided, make request with them; otherwise, make request with tag

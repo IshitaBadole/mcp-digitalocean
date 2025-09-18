@@ -170,17 +170,6 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			expectText:  "Name is required",
 		},
 		{
-			name: "Missing DropletIDs and Tag arguments",
-			args: map[string]any{
-				"Region":          "nyc3",
-				"Name":            "example-lb",
-				"ForwardingRules": forwardingRulesArg,
-			},
-			mockSetup:   nil,
-			expectError: true,
-			expectText:  "Either DropletIDs or Tag must be provided",
-		},
-		{
 			name: "Both DropletIDs and Tag arguments provided",
 			args: map[string]any{
 				"Region":          "nyc3",
@@ -191,7 +180,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			},
 			mockSetup:   nil,
 			expectError: true,
-			expectText:  "Both DropletIDs and Tag cannot be provided together",
+			expectText:  "Only one target identifier (e.g. tag, droplets) can be specified",
 		},
 		{
 			name: "Missing ForwardingRules argument",
@@ -842,25 +831,6 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			expectText:  "Region is required",
 		},
 		{
-			name: "Missing DropletIDs and Tag arguments",
-			args: map[string]any{
-				"LoadBalancerID": "12345",
-				"Region":         "nyc3",
-				"Name":           "example-lb",
-				"ForwardingRules": []any{
-					map[string]any{
-						"EntryProtocol":  "http",
-						"EntryPort":      float64(80),
-						"TargetProtocol": "http",
-						"TargetPort":     float64(80),
-					},
-				},
-			},
-			mockSetup:   nil,
-			expectError: true,
-			expectText:  "Either DropletIDs or Tag must be provided",
-		},
-		{
 			name: "Both DropletIDs and Tag arguments provided",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
@@ -879,7 +849,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			},
 			mockSetup:   nil,
 			expectError: true,
-			expectText:  "Both DropletIDs and Tag cannot be provided together",
+			expectText:  "Only one target identifier (e.g. tag, droplets) can be specified",
 		},
 		{
 			name: "Missing ForwardingRules argument",
