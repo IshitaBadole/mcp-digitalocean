@@ -504,7 +504,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithString("NetworkStack", mcp.Description("Network stack of the load balancer (IPV4, DUALSTACK)")),
 				mcp.WithString("ProjectID", mcp.Description("Project ID to which the load balancer will be assigned")),
 				mcp.WithArray("TargetLoadBalancerIDs", mcp.Description("IDs of the target regional load balancers for a global load balancer")),
-				mcp.WithObject("GLBSettings", mcp.Description("Settings for a global load balancer")),
+				mcp.WithObject("GLBSettings", mcp.Description("Forward configurations for a global load balancer")),
 			),
 		},
 		{
@@ -568,7 +568,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithString("NetworkStack", mcp.Description("Network stack of the load balancer (IPV4, DUALSTACK)")),
 				mcp.WithString("ProjectID", mcp.Description("Project ID to which the load balancer will be assigned")),
 				mcp.WithArray("TargetLoadBalancerIDs", mcp.Description("IDs of the target regional load balancers for a global load balancer")),
-				mcp.WithObject("GLBSettings", mcp.Description("Settings for a global load balancer")),
+				mcp.WithObject("GLBSettings", mcp.Description("Forward configurations for a global load balancer")),
 			),
 		},
 		{
