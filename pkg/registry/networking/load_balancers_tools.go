@@ -492,7 +492,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		{
 			Handler: l.createLoadBalancer,
 			Tool: mcp.NewTool("load-balancer-create",
-				mcp.WithDescription("Create a new Load Balancer. Either DropletIDs or Tag must be provided, but not both."),
+				mcp.WithDescription("Create a new Load Balancer"),
 				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the load balancer")),
 				mcp.WithString("Region", mcp.Description("Region slug (e.g., nyc3)")),
 				mcp.WithArray("DropletIDs", mcp.Description("IDs of the Droplets assigned to the load balancer")),
