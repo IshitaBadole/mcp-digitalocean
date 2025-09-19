@@ -148,6 +148,58 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			},
 		},
 		{
+			name: "Successful create Global Load Balancer",
+			args: map[string]any{
+				"Name": "example-global-lb",
+				"Tag":  "example-tag",
+				"Type": "GLOBAL",
+				"GLBSettings": map[string]any{
+					"TargetPort":        float64(80),
+					"TargetProtocol":    "http",
+					"RegionPriorities":  map[string]any{"dev1": float64(1), "dev2": float64(2)},
+					"FailoverThreshold": float64(10),
+					"CDN": map[string]any{
+						"IsEnabled": true,
+					},
+				},
+				"TargetLoadBalancerIDs": []any{"target-lb-1", "target-lb-2"},
+			},
+			mockSetup: func(m *MockLoadBalancersService) {
+				m.EXPECT().
+					Create(gomock.Any(), &godo.LoadBalancerRequest{
+						Name: "example-global-lb",
+						Tag:  "example-tag",
+						Type: "GLOBAL",
+						GLBSettings: &godo.GLBSettings{
+							TargetPort:        80,
+							TargetProtocol:    "http",
+							RegionPriorities:  map[string]uint32{"dev1": 1, "dev2": 2},
+							FailoverThreshold: 10,
+							CDN: &godo.CDNSettings{
+								IsEnabled: true,
+							},
+						},
+						TargetLoadBalancerIDs: []string{"target-lb-1", "target-lb-2"},
+					}).
+					Return(&godo.LoadBalancer{
+						ID:   "12345",
+						Name: "example-global-lb",
+						Type: "GLOBAL",
+						GLBSettings: &godo.GLBSettings{
+							TargetPort:        80,
+							TargetProtocol:    "http",
+							RegionPriorities:  map[string]uint32{"dev1": 1, "dev2": 2},
+							FailoverThreshold: 10,
+							CDN: &godo.CDNSettings{
+								IsEnabled: true,
+							},
+						},
+						TargetLoadBalancerIDs: []string{"target-lb-1", "target-lb-2"},
+					}, nil, nil).
+					Times(1)
+			},
+		},
+		{
 			name: "Missing Region argument",
 			args: map[string]any{
 				"Name":            "example-lb",
@@ -156,7 +208,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 			},
 			mockSetup:   nil,
 			expectError: true,
-			expectText:  "Region is required",
+			expectText:  "Region is required for REGIONAL and REGIONAL_NETWORK load balancers",
 		},
 		{
 			name: "Missing Name argument",
@@ -708,6 +760,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			args: map[string]any{
 				"LoadBalancerID": "12345",
 				"Name":           "example-lb-updated",
+				"Type":           "REGIONAL",
 				"Region":         "nyc3",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
@@ -724,6 +777,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 					Update(gomock.Any(), "12345", &godo.LoadBalancerRequest{
 						Region:     "nyc3",
 						Name:       "example-lb-updated",
+						Type:       "REGIONAL",
 						DropletIDs: []int{111, 222},
 						ForwardingRules: []godo.ForwardingRule{
 							{
@@ -739,10 +793,65 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			},
 		},
 		{
+			name: "Successful update Global Load Balancer",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"Name":           "example-global-lb-updated",
+				"Type":           "GLOBAL",
+				"Tag":            "example-tag-updated",
+				"GLBSettings": map[string]any{
+					"TargetPort":        float64(20),
+					"TargetProtocol":    "http",
+					"RegionPriorities":  map[string]any{"dev1": float64(2), "dev2": float64(1)},
+					"FailoverThreshold": float64(50),
+					"CDN": map[string]any{
+						"IsEnabled": true,
+					},
+				},
+				"TargetLoadBalancerIDs": []any{"target-lb-3", "target-lb-4"},
+			},
+			mockSetup: func(m *MockLoadBalancersService) {
+				m.EXPECT().
+					Update(gomock.Any(), "12345", &godo.LoadBalancerRequest{
+						Name: "example-global-lb-updated",
+						Tag:  "example-tag-updated",
+						Type: "GLOBAL",
+						GLBSettings: &godo.GLBSettings{
+							TargetPort:        20,
+							TargetProtocol:    "http",
+							RegionPriorities:  map[string]uint32{"dev1": 2, "dev2": 1},
+							FailoverThreshold: 50,
+							CDN: &godo.CDNSettings{
+								IsEnabled: true,
+							},
+						},
+						TargetLoadBalancerIDs: []string{"target-lb-3", "target-lb-4"},
+					}).
+					Return(&godo.LoadBalancer{
+						ID:   "12345",
+						Name: "example-global-lb-updated",
+						Type: "GLOBAL",
+						Tag:  "example-tag-updated",
+						GLBSettings: &godo.GLBSettings{
+							TargetPort:        20,
+							TargetProtocol:    "http",
+							RegionPriorities:  map[string]uint32{"dev1": 2, "dev2": 1},
+							FailoverThreshold: 50,
+							CDN: &godo.CDNSettings{
+								IsEnabled: true,
+							},
+						},
+						TargetLoadBalancerIDs: []string{"target-lb-3", "target-lb-4"},
+					}, nil, nil).
+					Times(1)
+			},
+		},
+		{
 			name: "Successful update with optional arguments provided",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
 				"Name":           "example-lb-updated",
+				"Type":           "REGIONAL_NETWORK",
 				"Region":         "nyc3",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
@@ -753,7 +862,6 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 						"TargetPort":     float64(80),
 					},
 				},
-				"Type":         "REGIONAL_NETWORK",
 				"Network":      "INTERNAL",
 				"SizeUnit":     float64(4),
 				"NetworkStack": "DUALSTACK",
@@ -764,6 +872,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 					Update(gomock.Any(), "12345", &godo.LoadBalancerRequest{
 						Region:     "nyc3",
 						Name:       "example-lb-updated",
+						Type:       "REGIONAL_NETWORK",
 						DropletIDs: []int{111, 222},
 						ForwardingRules: []godo.ForwardingRule{
 							{
@@ -774,7 +883,6 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 							},
 						},
 						SizeUnit:     4,
-						Type:         "REGIONAL_NETWORK",
 						Network:      "INTERNAL",
 						NetworkStack: "DUALSTACK",
 						ProjectID:    "example-project-id",
@@ -782,9 +890,10 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 					Return(&godo.LoadBalancer{
 						ID:           "12345",
 						Region:       &godo.Region{Slug: "nyc3"},
+						Name:         "example-lb-updated",
+						Type:         "REGIONAL_NETWORK",
 						DropletIDs:   []int{111, 222},
 						SizeUnit:     4,
-						Type:         "REGIONAL_NETWORK",
 						Network:      "INTERNAL",
 						NetworkStack: "DUALSTACK",
 						ProjectID:    "example-project-id",
@@ -797,6 +906,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			args: map[string]any{
 				"Region":     "nyc3",
 				"Name":       "example-lb",
+				"Type":       "REGIONAL",
 				"DropletIDs": []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
@@ -812,10 +922,31 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			expectText:  "Load Balancer ID is required",
 		},
 		{
-			name: "Missing Region argument",
+			name: "Missing Name argument",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"DropletIDs":     []any{float64(111), float64(222)},
+				"Region":         "nyc3",
+				"Type":           "REGIONAL",
+				"ForwardingRules": []any{
+					map[string]any{
+						"EntryProtocol":  "http",
+						"EntryPort":      float64(80),
+						"TargetProtocol": "http",
+						"TargetPort":     float64(80),
+					},
+				},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Name is required",
+		},
+		{
+			name: "Missing Type argument",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
 				"Name":           "example-lb",
+				"Region":         "nyc3",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
@@ -828,14 +959,27 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			},
 			mockSetup:   nil,
 			expectError: true,
-			expectText:  "Region is required",
+			expectText:  "Type is required",
 		},
 		{
-			name: "Both DropletIDs and Tag arguments provided",
+			name: "Missing Region argument for REGIONAL type",
+			args: map[string]any{
+				"LoadBalancerID": "12345",
+				"Name":           "example-lb",
+				"Type":           "REGIONAL",
+				"DropletIDs":     []any{float64(111), float64(222)},
+			},
+			mockSetup:   nil,
+			expectError: true,
+			expectText:  "Region is required for REGIONAL and REGIONAL_NETWORK load balancers",
+		},
+		{
+			name: "Both DropletIDs and Tag arguments cannot be provided",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
 				"Region":         "nyc3",
 				"Name":           "example-lb",
+				"Type":           "REGIONAL",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"Tag":            "web-servers",
 				"ForwardingRules": []any{
@@ -852,23 +996,12 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 			expectText:  "Only one target identifier (e.g. tag, droplets) can be specified",
 		},
 		{
-			name: "Missing ForwardingRules argument",
-			args: map[string]any{
-				"LoadBalancerID": "12345",
-				"Name":           "example-lb",
-				"Region":         "nyc3",
-				"DropletIDs":     []any{float64(111), float64(222)},
-			},
-			mockSetup:   nil,
-			expectError: true,
-			expectText:  "At least one forwarding rule must be provided",
-		},
-		{
 			name: "API error",
 			args: map[string]any{
 				"LoadBalancerID": "12345",
 				"Name":           "example-lb",
 				"Region":         "nyc3",
+				"Type":           "REGIONAL",
 				"DropletIDs":     []any{float64(111), float64(222)},
 				"ForwardingRules": []any{
 					map[string]any{
@@ -884,6 +1017,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 					Update(gomock.Any(), "12345", &godo.LoadBalancerRequest{
 						Region:     "nyc3",
 						Name:       "example-lb",
+						Type:       "REGIONAL",
 						DropletIDs: []int{111, 222},
 						ForwardingRules: []godo.ForwardingRule{
 							{
