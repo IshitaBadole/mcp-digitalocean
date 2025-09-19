@@ -74,39 +74,89 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 	if !ok || name == "" {
 		return mcp.NewToolResultError("Name is required"), nil
 	}
-	region, ok := args["Region"].(string)
-	if !ok || region == "" {
-		return mcp.NewToolResultError("Region is required"), nil
-	}
 	lbType, _ := args["Type"].(string)
 	network, _ := args["Network"].(string)
 	sizeUnit, _ := args["SizeUnit"].(float64)
 	networkStack, _ := args["NetworkStack"].(string)
 	projectID, _ := args["ProjectID"].(string)
 
-	// Parse forwarding rules
-	forwardingRules := []godo.ForwardingRule{}
-	if rules, ok := args["ForwardingRules"]; ok && rules != nil {
-		var err error
-		forwardingRules, err = parseForwardingRules(rules.([]any))
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
-		}
-	}
-
-	if len(forwardingRules) == 0 {
-		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
-	}
-
 	lbr := &godo.LoadBalancerRequest{
-		Name:            name,
-		Region:          region,
-		ForwardingRules: forwardingRules,
-		SizeUnit:        uint32(sizeUnit),
-		Type:            lbType,
-		Network:         network,
-		NetworkStack:    networkStack,
-		ProjectID:       projectID,
+		Name:         name,
+		SizeUnit:     uint32(sizeUnit),
+		Type:         lbType,
+		Network:      network,
+		NetworkStack: networkStack,
+		ProjectID:    projectID,
+	}
+
+	// Global load balancer arguments
+	if lbType == "GLOBAL" {
+		// Parse target load balancer IDs
+		targetLoadBalancerIDs, _ := args["TargetLoadBalancerIDs"].([]any)
+		if len(targetLoadBalancerIDs) > 0 {
+			targetIDs := make([]string, len(targetLoadBalancerIDs))
+			for i, id := range targetLoadBalancerIDs {
+				if id, ok := id.(string); ok {
+					targetIDs[i] = string(id)
+				}
+			}
+			lbr.TargetLoadBalancerIDs = targetIDs
+		}
+
+		// Parse GLB settings
+		if glbSettings, ok := args["GLBSettings"].(map[string]any); ok && len(glbSettings) > 0 {
+			targetProtocol, _ := glbSettings["TargetProtocol"].(string)
+			targetPort, _ := glbSettings["TargetPort"].(float64)
+
+			cdnSettings := &godo.CDNSettings{}
+			if cdn, ok := glbSettings["CDN"].(map[string]any); ok {
+				if isEnabled, ok := cdn["IsEnabled"].(bool); ok {
+					cdnSettings.IsEnabled = isEnabled
+				}
+			}
+
+			rp := make(map[string]uint32)
+			if regionPriorities, ok := glbSettings["RegionPriorities"].(map[string]any); ok {
+				for k, v := range regionPriorities {
+					if val, ok := v.(float64); ok {
+						rp[k] = uint32(val)
+					}
+				}
+			}
+
+			failoverThreshold, _ := glbSettings["FailoverThreshold"].(float64)
+
+			lbr.GLBSettings = &godo.GLBSettings{
+				TargetProtocol:    targetProtocol,
+				TargetPort:        uint32(targetPort),
+				CDN:               cdnSettings,
+				RegionPriorities:  rp,
+				FailoverThreshold: uint32(failoverThreshold),
+			}
+		}
+	} else {
+		// Regional load balancer arguments
+		region, ok := args["Region"].(string)
+		if !ok || region == "" {
+			return mcp.NewToolResultError("Region is required for REGIONAL and REGIONAL_NETWORK load balancers"), nil
+		}
+		lbr.Region = region
+
+		// Parse forwarding rules
+		forwardingRules := []godo.ForwardingRule{}
+		if rules, ok := args["ForwardingRules"]; ok && rules != nil {
+			var err error
+			forwardingRules, err = parseForwardingRules(rules.([]any))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
+			}
+		}
+
+		if len(forwardingRules) == 0 {
+			return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
+		}
+
+		lbr.ForwardingRules = forwardingRules
 	}
 
 	tag, _ := args["Tag"].(string)
@@ -115,7 +165,7 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 		return mcp.NewToolResultError("Only one target identifier (e.g. tag, droplets) can be specified"), nil
 	}
 
-	// If droplet IDs are provided, make request with them; otherwise, make request with tag
+	// If droplet IDs are provided, make request with them
 	if len(dropletIDs) > 0 {
 		// Parse droplet IDs as ints
 		intDropletIDs := make([]int, len(dropletIDs))
@@ -125,7 +175,9 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 			}
 		}
 		lbr.DropletIDs = intDropletIDs
-	} else {
+	}
+	// If tag is provided, make request with it
+	if tag != "" {
 		lbr.Tag = tag
 	}
 
@@ -259,38 +311,93 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 	if !ok || name == "" {
 		return mcp.NewToolResultError("Name is required"), nil
 	}
-	region, ok := args["Region"].(string)
-	if !ok || region == "" {
-		return mcp.NewToolResultError("Region is required"), nil
+	// Type is required for update with MCP to validate type-specific required arguments
+	// For example, Region is required for REGIONAL load balancers
+	// and GLBSettings is required for GLOBAL load balancers
+	// If Type is not provided and the existing load balancer is a GLOBAL load balancer
+	// and Region is not provided
+	// then api returns an error even though region is not required for GLOB returnsAL load balancers
+	lbType, ok := args["Type"].(string)
+	if !ok || lbType == "" {
+		return mcp.NewToolResultError("Type is required"), nil
 	}
-	lbType, _ := args["Type"].(string)
+
 	network, _ := args["Network"].(string)
 	sizeUnit, _ := args["SizeUnit"].(float64)
 	networkStack, _ := args["NetworkStack"].(string)
 	projectID, _ := args["ProjectID"].(string)
 
-	// Parse forwarding rules
-	forwardingRules := []godo.ForwardingRule{}
-	if rules, ok := args["ForwardingRules"]; ok && rules != nil {
-		var err error
-		forwardingRules, err = parseForwardingRules(rules.([]any))
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
-		}
-	}
-	if len(forwardingRules) == 0 {
-		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
+	lbr := &godo.LoadBalancerRequest{
+		Name:         name,
+		SizeUnit:     uint32(sizeUnit),
+		Type:         lbType,
+		Network:      network,
+		NetworkStack: networkStack,
+		ProjectID:    projectID,
 	}
 
-	lbr := &godo.LoadBalancerRequest{
-		Name:            name,
-		Region:          region,
-		ForwardingRules: forwardingRules,
-		SizeUnit:        uint32(sizeUnit),
-		Type:            lbType,
-		Network:         network,
-		NetworkStack:    networkStack,
-		ProjectID:       projectID,
+	if lbType == "GLOBAL" {
+		// Parse target load balancer IDs
+		targetLoadBalancerIDs, _ := args["TargetLoadBalancerIDs"].([]any)
+		if len(targetLoadBalancerIDs) > 0 {
+			targetIDs := make([]string, len(targetLoadBalancerIDs))
+			for i, id := range targetLoadBalancerIDs {
+				if id, ok := id.(string); ok {
+					targetIDs[i] = string(id)
+				}
+			}
+			lbr.TargetLoadBalancerIDs = targetIDs
+		}
+
+		// Parse GLB settings
+		if glbSettings, ok := args["GLBSettings"].(map[string]any); ok && len(glbSettings) > 0 {
+			targetProtocol, _ := glbSettings["TargetProtocol"].(string)
+			targetPort, _ := glbSettings["TargetPort"].(float64)
+
+			cdnSettings := &godo.CDNSettings{}
+			if cdn, ok := glbSettings["CDN"].(map[string]any); ok {
+				if isEnabled, ok := cdn["IsEnabled"].(bool); ok {
+					cdnSettings.IsEnabled = isEnabled
+				}
+			}
+
+			rp := make(map[string]uint32)
+			if regionPriorities, ok := glbSettings["RegionPriorities"].(map[string]any); ok {
+				for k, v := range regionPriorities {
+					if val, ok := v.(float64); ok {
+						rp[k] = uint32(val)
+					}
+				}
+			}
+
+			failoverThreshold, _ := glbSettings["FailoverThreshold"].(float64)
+
+			lbr.GLBSettings = &godo.GLBSettings{
+				TargetProtocol:    targetProtocol,
+				TargetPort:        uint32(targetPort),
+				CDN:               cdnSettings,
+				RegionPriorities:  rp,
+				FailoverThreshold: uint32(failoverThreshold),
+			}
+		}
+	} else {
+		// Regional load balancer arguments
+		region, ok := args["Region"].(string)
+		if !ok || region == "" {
+			return mcp.NewToolResultError("Region is required for REGIONAL and REGIONAL_NETWORK load balancers"), nil
+		}
+		lbr.Region = region
+
+		// Parse forwarding rules
+		forwardingRules := []godo.ForwardingRule{}
+		if rules, ok := args["ForwardingRules"]; ok && rules != nil {
+			var err error
+			forwardingRules, err = parseForwardingRules(rules.([]any))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
+			}
+		}
+		lbr.ForwardingRules = forwardingRules
 	}
 
 	tag, _ := args["Tag"].(string)
@@ -299,7 +406,7 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 		return mcp.NewToolResultError("Only one target identifier (e.g. tag, droplets) can be specified"), nil
 	}
 
-	// If droplet IDs are provided, make request with them; otherwise, make request with tag
+	// If droplet IDs are provided, make request with them
 	if len(dropletIDs) > 0 {
 		// Parse droplet IDs as ints
 		intDropletIDs := make([]int, len(dropletIDs))
@@ -309,7 +416,9 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 			}
 		}
 		lbr.DropletIDs = intDropletIDs
-	} else {
+	}
+	// If tag is provided, make request with it
+	if tag != "" {
 		lbr.Tag = tag
 	}
 
@@ -394,6 +503,8 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithNumber("SizeUnit", mcp.DefaultNumber(2), mcp.Description("Size of the load balancer in units appropriate to its type")),
 				mcp.WithString("NetworkStack", mcp.Description("Network stack of the load balancer (IPV4, DUALSTACK)")),
 				mcp.WithString("ProjectID", mcp.Description("Project ID to which the load balancer will be assigned")),
+				mcp.WithArray("TargetLoadBalancerIDs", mcp.Description("IDs of the target regional load balancers for a global load balancer")),
+				mcp.WithObject("GLBSettings", mcp.Description("Settings for a global load balancer")),
 			),
 		},
 		{
@@ -451,11 +562,13 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 				mcp.WithArray("DropletIDs", mcp.Description("IDs of the Droplets assigned to the load balancer")),
 				mcp.WithString("Tag", mcp.Description("Droplet tag corresponding to Droplets assigned to the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Description("Forwarding rules for a load balancer")),
-				mcp.WithString("Type", mcp.Description("Type of the load balancer (REGIONAL, REGIONAL_NETWORK, GLOBAL)")),
+				mcp.WithString("Type", mcp.Required(), mcp.Description("Type of the load balancer (REGIONAL, REGIONAL_NETWORK, GLOBAL)")),
 				mcp.WithString("Network", mcp.Description("Network type of the load balancer (EXTERNAL, INTERNAL)")),
 				mcp.WithNumber("SizeUnit", mcp.DefaultNumber(2), mcp.Description("Size of the load balancer in units appropriate to its type")),
 				mcp.WithString("NetworkStack", mcp.Description("Network stack of the load balancer (IPV4, DUALSTACK)")),
 				mcp.WithString("ProjectID", mcp.Description("Project ID to which the load balancer will be assigned")),
+				mcp.WithArray("TargetLoadBalancerIDs", mcp.Description("IDs of the target regional load balancers for a global load balancer")),
+				mcp.WithObject("GLBSettings", mcp.Description("Settings for a global load balancer")),
 			),
 		},
 		{
