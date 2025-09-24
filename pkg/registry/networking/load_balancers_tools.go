@@ -510,6 +510,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		{
 			Handler: l.deleteLoadBalancer,
 			Tool: mcp.NewTool("load-balancer-delete",
+				mcp.WithDestructiveHintAnnotation(true),
 				mcp.WithDescription("Delete a Load Balancer by ID"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 			),
@@ -517,6 +518,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		{
 			Handler: l.deleteLoadBalancerCache,
 			Tool: mcp.NewTool("load-balancer-delete-cache",
+				mcp.WithDestructiveHintAnnotation(true),
 				mcp.WithDescription("Delete the CDN cache of a global load balancer by ID"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 			),
