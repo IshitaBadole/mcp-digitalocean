@@ -20,29 +20,29 @@ func NewLoadBalancersTool(client *godo.Client) *LoadBalancersTool {
 	}
 }
 
-func parseForwardingRules(rules []any) ([]godo.ForwardingRule, error) {
+func parseForwardingRules(rules []any) ([]godo.ForwardingRule, *mcp.CallToolResult) {
 	forwardingRules := []godo.ForwardingRule{}
 	for _, ruleData := range rules {
 		rule, ok := ruleData.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("invalid rule format")
+			return nil, mcp.NewToolResultError("invalid rule format")
 		}
 
 		entryProtocol, ok := rule["EntryProtocol"].(string)
 		if !ok {
-			return nil, fmt.Errorf("EntryProtocol must be a string")
+			return nil, mcp.NewToolResultError("EntryProtocol must be a string")
 		}
 		entryPort, ok := rule["EntryPort"].(float64)
 		if !ok {
-			return nil, fmt.Errorf("EntryPort must be a number")
+			return nil, mcp.NewToolResultError("EntryPort must be a number")
 		}
 		targetProtocol, ok := rule["TargetProtocol"].(string)
 		if !ok {
-			return nil, fmt.Errorf("TargetProtocol must be a string")
+			return nil, mcp.NewToolResultError("TargetProtocol must be a string")
 		}
 		targetPort, ok := rule["TargetPort"].(float64)
 		if !ok {
-			return nil, fmt.Errorf("TargetPort must be a number")
+			return nil, mcp.NewToolResultError("TargetPort must be a number")
 		}
 		// set tlsPassthrough to false if not provided
 		tlsPassthrough := false
@@ -145,10 +145,10 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 		// Parse forwarding rules
 		forwardingRules := []godo.ForwardingRule{}
 		if rules, ok := args["ForwardingRules"]; ok && rules != nil {
-			var err error
+			var err *mcp.CallToolResult
 			forwardingRules, err = parseForwardingRules(rules.([]any))
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
+				return err, nil
 			}
 		}
 
@@ -391,10 +391,10 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 		// Parse forwarding rules
 		forwardingRules := []godo.ForwardingRule{}
 		if rules, ok := args["ForwardingRules"]; ok && rules != nil {
-			var err error
+			var err *mcp.CallToolResult
 			forwardingRules, err = parseForwardingRules(rules.([]any))
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
+				return err, nil
 			}
 		}
 		lbr.ForwardingRules = forwardingRules
@@ -442,10 +442,10 @@ func (l *LoadBalancersTool) addForwardingRules(ctx context.Context, req mcp.Call
 	// Parse forwarding rules
 	forwardingRules := []godo.ForwardingRule{}
 	if rules, ok := req.GetArguments()["ForwardingRules"]; ok && rules != nil {
-		var err error
+		var err *mcp.CallToolResult
 		forwardingRules, err = parseForwardingRules(rules.([]any))
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
+			return err, nil
 		}
 	}
 	if len(forwardingRules) == 0 {
@@ -469,10 +469,10 @@ func (l *LoadBalancersTool) removeForwardingRules(ctx context.Context, req mcp.C
 	// Parse forwarding rules
 	forwardingRules := []godo.ForwardingRule{}
 	if rules, ok := req.GetArguments()["ForwardingRules"]; ok && rules != nil {
-		var err error
+		var err *mcp.CallToolResult
 		forwardingRules, err = parseForwardingRules(rules.([]any))
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("invalid ForwardingRules: %v", err)), nil
+			return err, nil
 		}
 	}
 	if len(forwardingRules) == 0 {
