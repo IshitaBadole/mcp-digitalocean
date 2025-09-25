@@ -91,16 +91,9 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 
 	// Global load balancer arguments
 	if lbType == "GLOBAL" {
-		// Parse target load balancer IDs
-		targetLoadBalancerIDs, _ := args["TargetLoadBalancerIDs"].([]any)
-		if len(targetLoadBalancerIDs) > 0 {
-			targetIDs := make([]string, len(targetLoadBalancerIDs))
-			for i, id := range targetLoadBalancerIDs {
-				if id, ok := id.(string); ok {
-					targetIDs[i] = string(id)
-				}
-			}
-			lbr.TargetLoadBalancerIDs = targetIDs
+		targetLoadBalancerIDs, ok := args["TargetLoadBalancerIDs"].([]string)
+		if ok && len(targetLoadBalancerIDs) > 0 {
+			lbr.TargetLoadBalancerIDs = targetLoadBalancerIDs
 		}
 
 		// Parse GLB settings
@@ -337,16 +330,9 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 	}
 
 	if lbType == "GLOBAL" {
-		// Parse target load balancer IDs
-		targetLoadBalancerIDs, _ := args["TargetLoadBalancerIDs"].([]any)
-		if len(targetLoadBalancerIDs) > 0 {
-			targetIDs := make([]string, len(targetLoadBalancerIDs))
-			for i, id := range targetLoadBalancerIDs {
-				if id, ok := id.(string); ok {
-					targetIDs[i] = string(id)
-				}
-			}
-			lbr.TargetLoadBalancerIDs = targetIDs
+		targetLoadBalancerIDs, ok := args["TargetLoadBalancerIDs"].([]string)
+		if ok && len(targetLoadBalancerIDs) > 0 {
+			lbr.TargetLoadBalancerIDs = targetLoadBalancerIDs
 		}
 
 		// Parse GLB settings
