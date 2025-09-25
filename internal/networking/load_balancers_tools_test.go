@@ -162,7 +162,7 @@ func TestLoadBalancersTool_createLoadBalancer(t *testing.T) {
 						"IsEnabled": true,
 					},
 				},
-				"TargetLoadBalancerIDs": []any{"target-lb-1", "target-lb-2"},
+				"TargetLoadBalancerIDs": []string{"target-lb-1", "target-lb-2"},
 			},
 			mockSetup: func(m *MockLoadBalancersService) {
 				m.EXPECT().
@@ -808,7 +808,7 @@ func TestLoadBalancersTool_updateLoadBalancer(t *testing.T) {
 						"IsEnabled": true,
 					},
 				},
-				"TargetLoadBalancerIDs": []any{"target-lb-3", "target-lb-4"},
+				"TargetLoadBalancerIDs": []string{"target-lb-3", "target-lb-4"},
 			},
 			mockSetup: func(m *MockLoadBalancersService) {
 				m.EXPECT().
