@@ -74,6 +74,7 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 	if !ok || name == "" {
 		return mcp.NewToolResultError("Name is required"), nil
 	}
+	// Optional arguments
 	lbType, _ := args["Type"].(string)
 	network, _ := args["Network"].(string)
 	sizeUnit, _ := args["SizeUnit"].(float64)
@@ -152,6 +153,7 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 		lbr.ForwardingRules = forwardingRules
 	}
 
+	// Target identifiers are optional but only one can be provided
 	tag, _ := args["Tag"].(string)
 	dropletIDs, _ := args["DropletIDs"].([]any)
 	if len(dropletIDs) > 0 && tag != "" {
@@ -309,12 +311,13 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 	// and GLBSettings is required for GLOBAL load balancers
 	// If Type is not provided and the existing load balancer is a GLOBAL load balancer
 	// and Region is not provided
-	// then api returns an error even though region is not required for GLOB returnsAL load balancers
+	// then api returns an error even though region is not required for GLOBAL load balancers
 	lbType, ok := args["Type"].(string)
 	if !ok || lbType == "" {
 		return mcp.NewToolResultError("Type is required"), nil
 	}
 
+	// Optional arguments
 	network, _ := args["Network"].(string)
 	sizeUnit, _ := args["SizeUnit"].(float64)
 	networkStack, _ := args["NetworkStack"].(string)
@@ -386,6 +389,7 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 		lbr.ForwardingRules = forwardingRules
 	}
 
+	// Target identifiers are optional but only one can be provided
 	tag, _ := args["Tag"].(string)
 	dropletIDs, _ := args["DropletIDs"].([]any)
 	if len(dropletIDs) > 0 && tag != "" {
