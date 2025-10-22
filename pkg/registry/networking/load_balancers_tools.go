@@ -10,11 +10,13 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// LoadBalancersTool provides load balancer management tools
 type LoadBalancersTool struct {
-	client *godo.Client
+	client func(ctx context.Context) (*godo.Client, error)
 }
 
-func NewLoadBalancersTool(client *godo.Client) *LoadBalancersTool {
+// NewLoadBalancersTool creates a new LoadBalancersTool
+func NewLoadBalancersTool(client func(ctx context.Context) (*godo.Client, error)) *LoadBalancersTool {
 	return &LoadBalancersTool{
 		client: client,
 	}
@@ -176,7 +178,12 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 		lbr.Tag = tag
 	}
 
-	lb, _, err := l.client.LoadBalancers.Create(ctx, lbr)
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	lb, _, err := client.LoadBalancers.Create(ctx, lbr)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -189,7 +196,13 @@ func (l *LoadBalancersTool) createLoadBalancer(ctx context.Context, req mcp.Call
 
 func (l *LoadBalancersTool) deleteLoadBalancer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	lbID := req.GetArguments()["LoadBalancerID"].(string)
-	_, err := l.client.LoadBalancers.Delete(ctx, lbID)
+
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.LoadBalancers.Delete(ctx, lbID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -199,7 +212,13 @@ func (l *LoadBalancersTool) deleteLoadBalancer(ctx context.Context, req mcp.Call
 
 func (l *LoadBalancersTool) deleteLoadBalancerCache(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	lbID := req.GetArguments()["LoadBalancerID"].(string)
-	_, err := l.client.LoadBalancers.PurgeCache(ctx, lbID)
+
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.LoadBalancers.PurgeCache(ctx, lbID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -213,7 +232,12 @@ func (l *LoadBalancersTool) getLoadBalancer(ctx context.Context, req mcp.CallToo
 		return mcp.NewToolResultError("LoadBalancer ID is required"), nil
 	}
 
-	lb, _, err := l.client.LoadBalancers.Get(ctx, lbID)
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	lb, _, err := client.LoadBalancers.Get(ctx, lbID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -237,7 +261,13 @@ func (l *LoadBalancersTool) listLoadBalancers(ctx context.Context, req mcp.CallT
 		Page:    int(page),
 		PerPage: int(perPage),
 	}
-	lbs, _, err := l.client.LoadBalancers.List(ctx, opt)
+
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	lbs, _, err := client.LoadBalancers.List(ctx, opt)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -264,7 +294,12 @@ func (l *LoadBalancersTool) addDroplets(ctx context.Context, req mcp.CallToolReq
 		}
 	}
 
-	_, err := l.client.LoadBalancers.AddDroplets(ctx, lbID, dIDs...)
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.LoadBalancers.AddDroplets(ctx, lbID, dIDs...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -288,7 +323,12 @@ func (l *LoadBalancersTool) removeDroplets(ctx context.Context, req mcp.CallTool
 		}
 	}
 
-	_, err := l.client.LoadBalancers.RemoveDroplets(ctx, lbID, dIDs...)
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.LoadBalancers.RemoveDroplets(ctx, lbID, dIDs...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -412,7 +452,12 @@ func (l *LoadBalancersTool) updateLoadBalancer(ctx context.Context, req mcp.Call
 		lbr.Tag = tag
 	}
 
-	lb, _, err := l.client.LoadBalancers.Update(ctx, lbID, lbr)
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	lb, _, err := client.LoadBalancers.Update(ctx, lbID, lbr)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -442,7 +487,12 @@ func (l *LoadBalancersTool) addForwardingRules(ctx context.Context, req mcp.Call
 		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
 	}
 
-	_, err := l.client.LoadBalancers.AddForwardingRules(ctx, lbID, forwardingRules...)
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.LoadBalancers.AddForwardingRules(ctx, lbID, forwardingRules...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -469,7 +519,12 @@ func (l *LoadBalancersTool) removeForwardingRules(ctx context.Context, req mcp.C
 		return mcp.NewToolResultError("At least one forwarding rule must be provided"), nil
 	}
 
-	_, err := l.client.LoadBalancers.RemoveForwardingRules(ctx, lbID, forwardingRules...)
+	client, err := l.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.LoadBalancers.RemoveForwardingRules(ctx, lbID, forwardingRules...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

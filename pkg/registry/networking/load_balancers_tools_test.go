@@ -13,8 +13,9 @@ import (
 )
 
 func setupLoadBalancersToolWithMock(loadBalancers *MockLoadBalancersService) *LoadBalancersTool {
-	client := &godo.Client{}
-	client.LoadBalancers = loadBalancers
+	client := func(ctx context.Context) (*godo.Client, error) {
+		return &godo.Client{LoadBalancers: loadBalancers}, nil
+	}
 	return NewLoadBalancersTool(client)
 }
 
